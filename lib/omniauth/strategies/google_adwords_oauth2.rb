@@ -1,8 +1,8 @@
-require 'omniauth/strategies/oauth2'
+require 'omniauth-google-oauth2'
 
 module OmniAuth
   module Strategies
-    class GoogleOauth2 < OmniAuth::Strategies::OAuth2
+    class GoogleAdwordsOauth2 < OmniAuth::Strategies::GoogleOauth2
       BASE_SCOPE_URL = "https://www.googleapis.com/auth/"
       BASE_SCOPES = %w[profile email openid]
       DEFAULT_SCOPE = "email,profile"
