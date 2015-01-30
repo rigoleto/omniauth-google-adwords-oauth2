@@ -1,4 +1,5 @@
 require 'omniauth-google-oauth2'
+require 'adwords_api'
 
 module OmniAuth
   module Strategies
@@ -34,7 +35,7 @@ module OmniAuth
         hash[:id_token] = access_token['id_token']
         hash[:raw_info] = raw_info
         hash[:raw_info][:adwords] = adwords_info
-        hash[:raw_info][:token] = raw_token
+        hash[:raw_info][:token] = raw_token || {}
       end
 
       attr_accessor :raw_token

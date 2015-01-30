@@ -10,9 +10,13 @@ describe OmniAuth::Strategies::GoogleAdwordsOauth2 do
   }
 
   subject do
+    options = { :adwords_api_config => '../../../adwords_api.yml' }.merge(@options || {})
     OmniAuth::Strategies::GoogleAdwordsOauth2.new(app, 'appid', 'secret', @options || {}).tap do |strategy|
       allow(strategy).to receive(:request) {
         request
+      }
+      allow(strategy).to receive(:adwords_info) {
+        { :customer_id => 12345 }
       }
     end
   end
@@ -307,7 +311,7 @@ describe OmniAuth::Strategies::GoogleAdwordsOauth2 do
         before { subject.options[:skip_info] = false }
 
         it 'should include raw_info' do
-          expect(subject.extra[:raw_info]).to eq('sub' => '12345')
+          expect(subject.extra[:raw_info]).to eq('sub' => '12345', :adwords => { :customer_id => 12345 })
         end
       end
     end
