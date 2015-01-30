@@ -10,7 +10,7 @@ describe OmniAuth::Strategies::GoogleAdwordsOauth2 do
   }
 
   subject do
-    OmniAuth::Strategies::GoogleOauth2.new(app, 'appid', 'secret', @options || {}).tap do |strategy|
+    OmniAuth::Strategies::GoogleAdwordsOauth2.new(app, 'appid', 'secret', @options || {}).tap do |strategy|
       allow(strategy).to receive(:request) {
         request
       }
@@ -57,10 +57,14 @@ describe OmniAuth::Strategies::GoogleAdwordsOauth2 do
   end
 
   describe "#authorize_options" do
-    [:access_type, :hd, :login_hint, :prompt, :scope, :state].each do |k|
+    [:access_type, :hd, :login_hint, :prompt, :state].each do |k|
       it "should support #{k}" do
         @options = {k => 'http://someval'}
         expect(subject.authorize_params[k.to_s]).to eq('http://someval')
+      end
+      it 'should suppport scope' do
+        @options = {:scope => 'http://someval'}
+        expect(subject.authorize_params[:scope]).to eq('http://someval https://www.googleapis.com/auth/adwords')
       end
     end
 
@@ -146,36 +150,36 @@ describe OmniAuth::Strategies::GoogleAdwordsOauth2 do
     describe 'scope' do
       it 'should expand scope shortcuts' do
         @options = {:scope => 'plus.me'}
-        expect(subject.authorize_params['scope']).to eq('https://www.googleapis.com/auth/plus.me')
+        expect(subject.authorize_params['scope']).to eq('https://www.googleapis.com/auth/plus.me https://www.googleapis.com/auth/adwords')
       end
 
       it 'should leave base scopes as is' do
         @options = {:scope => 'profile'}
-        expect(subject.authorize_params['scope']).to eq('profile')
+        expect(subject.authorize_params['scope']).to eq('profile https://www.googleapis.com/auth/adwords')
       end
 
       it 'should join scopes' do
         @options = {:scope => 'profile,email'}
-        expect(subject.authorize_params['scope']).to eq('profile email')
+        expect(subject.authorize_params['scope']).to eq('profile email https://www.googleapis.com/auth/adwords')
       end
 
       it 'should deal with whitespace when joining scopes' do
         @options = {:scope => 'profile, email'}
-        expect(subject.authorize_params['scope']).to eq('profile email')
+        expect(subject.authorize_params['scope']).to eq('profile email https://www.googleapis.com/auth/adwords')
       end
 
-      it 'should set default scope to email,profile' do
-        expect(subject.authorize_params['scope']).to eq('email profile')
+      it 'should set default scope to email,profile,adwords' do
+        expect(subject.authorize_params['scope']).to eq('email profile https://www.googleapis.com/auth/adwords')
       end
 
       it 'should support space delimited scopes' do
         @options = {:scope => 'profile email'}
-        expect(subject.authorize_params['scope']).to eq('profile email')
+        expect(subject.authorize_params['scope']).to eq('profile email https://www.googleapis.com/auth/adwords')
       end
 
       it "should support extremely badly formed scopes" do
         @options = {:scope => 'profile email,foo,steve yeah http://example.com'}
-        expect(subject.authorize_params['scope']).to eq('profile email https://www.googleapis.com/auth/foo https://www.googleapis.com/auth/steve https://www.googleapis.com/auth/yeah http://example.com')
+        expect(subject.authorize_params['scope']).to eq('profile email https://www.googleapis.com/auth/foo https://www.googleapis.com/auth/steve https://www.googleapis.com/auth/yeah http://example.com https://www.googleapis.com/auth/adwords')
       end
     end
 
@@ -196,14 +200,14 @@ describe OmniAuth::Strategies::GoogleAdwordsOauth2 do
     describe "overrides" do
       it 'should include top-level options that are marked as :authorize_options' do
         @options = {:authorize_options => [:scope, :foo, :request_visible_actions], :scope => 'http://bar', :foo => 'baz', :hd => "wow", :request_visible_actions => "something"}
-        expect(subject.authorize_params['scope']).to eq('http://bar')
+        expect(subject.authorize_params['scope']).to eq('http://bar https://www.googleapis.com/auth/adwords')
         expect(subject.authorize_params['foo']).to eq('baz')
         expect(subject.authorize_params['hd']).to eq(nil)
         expect(subject.authorize_params['request_visible_actions']).to eq('something')
       end
 
       describe "request overrides" do
-        [:access_type, :hd, :login_hint, :prompt, :scope, :state].each do |k|
+        [:access_type, :hd, :login_hint, :prompt, :state].each do |k|
           context "authorize option #{k}" do
             let(:request) { double('Request', :params => {k.to_s => 'http://example.com'}, :cookies => {}, :env => {}) }
 
@@ -213,14 +217,22 @@ describe OmniAuth::Strategies::GoogleAdwordsOauth2 do
             end
           end
         end
+        context 'authorize option scope' do
+          let(:request) { double('Request', :params => {'scope' => 'http://example.com'}, :cookies => {}, :env => {}) }
 
-        describe "custom authorize_options" do
-          let(:request) { double('Request', :params => {'foo' => 'something'}, :cookies => {}, :env => {}) }
-
-          it "should support request overrides from custom authorize_options" do
-            @options = {:authorize_options => [:foo], :foo => ''}
-            expect(subject.authorize_params['foo']).to eq('something')
+          it 'should set the scope authorize option dynamically in the request' do
+            @options = {:scope => ''}
+            expect(subject.authorize_params['scope']).to eq('http://example.com https://www.googleapis.com/auth/adwords')
           end
+        end
+      end
+
+      describe "custom authorize_options" do
+        let(:request) { double('Request', :params => {'foo' => 'something'}, :cookies => {}, :env => {}) }
+
+        it "should support request overrides from custom authorize_options" do
+          @options = {:authorize_options => [:foo], :foo => ''}
+          expect(subject.authorize_params['foo']).to eq('something')
         end
       end
     end
@@ -256,7 +268,7 @@ describe OmniAuth::Strategies::GoogleAdwordsOauth2 do
 
   describe '#callback_path' do
     it 'has the correct callback path' do
-      expect(subject.callback_path).to eq('/auth/google_oauth2/callback')
+      expect(subject.callback_path).to eq('/auth/google_adwords_oauth2/callback')
     end
   end
 
@@ -291,14 +303,6 @@ describe OmniAuth::Strategies::GoogleAdwordsOauth2 do
     end
 
     describe 'raw_info' do
-      context 'when skip_info is true' do
-        before { subject.options[:skip_info] = true }
-
-        it 'should not include raw_info' do
-          expect(subject.extra).not_to have_key(:raw_info)
-        end
-      end
-
       context 'when skip_info is false' do
         before { subject.options[:skip_info] = false }
 
@@ -308,35 +312,6 @@ describe OmniAuth::Strategies::GoogleAdwordsOauth2 do
       end
     end
 
-    describe 'raw_friend_info' do
-      context 'when skip_info is true' do
-        before { subject.options[:skip_info] = true }
-
-        it 'should not include raw_friend_info' do
-          expect(subject.extra).not_to have_key(:raw_friend_info)
-        end
-      end
-
-      context 'when skip_info is false' do
-        before { subject.options[:skip_info] = false }
-
-        context 'when skip_friends is true' do
-          before { subject.options[:skip_friends] = true }
-
-          it 'should not include raw_friend_info' do
-            expect(subject.extra).not_to have_key(:raw_friend_info)
-          end
-        end
-
-        context 'when skip_friends is false' do
-          before { subject.options[:skip_friends] = false }
-
-          it 'should not include raw_friend_info' do
-            expect(subject.extra[:raw_friend_info]).to eq([{'foo' => 'bar'}])
-          end
-        end
-      end
-    end
   end
 
   describe 'populate auth hash urls' do
@@ -404,41 +379,6 @@ describe OmniAuth::Strategies::GoogleAdwordsOauth2 do
     it 'should return correct image if google image url has double https' do
       allow(subject).to receive(:raw_info) { {'picture' => 'https:https://lh3.googleusercontent.com/url/photo.jpg'} }
       expect(subject.info[:image]).to eq('https://lh3.googleusercontent.com/url/photo.jpg')
-    end
-  end
-
-  describe 'build_access_token' do
-    it 'should use a hybrid authorization request_uri if this is an AJAX request with a code parameter' do
-      allow(request).to receive(:xhr?).and_return(true)
-      allow(request).to receive(:params).and_return('code' => 'valid_code')
-
-      client = double(:client)
-      auth_code = double(:auth_code)
-      allow(client).to receive(:auth_code).and_return(auth_code)
-      expect(subject).to receive(:client).and_return(client)
-      expect(auth_code).to receive(:get_token).with('valid_code', { :redirect_uri => 'postmessage'}, {})
-
-      expect(subject).not_to receive(:orig_build_access_token)
-      subject.build_access_token
-    end
-
-    it 'should read access_token from hash if this is not an AJAX request with a code parameter' do
-      allow(request).to receive(:xhr?).and_return(false)
-      allow(request).to receive(:params).and_return('id_token' => 'valid_id_token', 'access_token' => 'valid_access_token')
-      expect(subject).to receive(:verify_token).with('valid_id_token', 'valid_access_token').and_return true
-      expect(subject).to receive(:client).and_return(:client)
-
-      token = subject.build_access_token
-      expect(token).to be_instance_of(::OAuth2::AccessToken)
-      expect(token.token).to eq('valid_access_token')
-      expect(token.client).to eq(:client)
-    end
-
-    it 'should call super if this is not an AJAX request' do
-      allow(request).to receive(:xhr?).and_return(false)
-      allow(request).to receive(:params).and_return('code' => 'valid_code')
-      expect(subject).to receive(:orig_build_access_token)
-      subject.build_access_token
     end
   end
 
